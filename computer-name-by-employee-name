@@ -1,0 +1,46 @@
+# This assumes your computer objects include the username of the person it is assigned to
+# Modify the Import-CSV statement and the first foreach loop to fit your employee list export
+# Mike Stiers - 01.26.2015
+
+$ComputersFilePath = "C:\temp\comps.txt"
+$EmpsFilePath = "C:\temp\emps.csv"
+$OutputFilePath = "C:\temp\output.csv"
+
+# Output a list of all computer objects
+Get-ADComputer -Filter * -SearchBase "ou=Workstations,ou=ONTOR,dc=corp,dc=local" | select Name | Out-File $ComputersFilePath
+
+# Import CSV of HR directory output
+$emps = Import-Csv $EmpsFilePath -Header LastName,FirstName,Division,Status,Title,Supervisor -Delimiter ','
+
+# Read each line in the Employee export, assign variables to the various elements
+foreach ($csvline in $emps)
+    {
+        $fn = $csvline.FirstName
+        $ln = $csvline.LastName
+        $division = $csvline.Division
+        $status = $csvline.Status
+        $title = $csvline.Title
+        $supervisor = $csvline.Supervisor
+        # Check if last name is of length 4, 3, 2, then cut the strings to make the username
+        if ($ln.Length -eq 2) {$username = $ln.Substring(0,2) + $fn.Substring(0,1)}
+        if ($ln.Length -eq 3) {$username = $ln.Substring(0,3) + $fn.Substring(0,1)}
+        if ($ln.Length -ge 4) {$username = $ln.Substring(0,4) + $fn.Substring(0,1)}
+        # Use a match variable to identify when a match is not present
+        $match = 0
+        # Read computer object output
+        foreach ($line in [System.IO.File]::ReadLines($ComputersFilePath))
+            {
+            if ($line.ToLower() -match $username.ToLower())
+                {
+                    $output = $line+","+$username+","+$fn+","+$ln+","+$division+","+$status+","+$title+","+$supervisor
+                    $output | Out-File -Append $OutputFilePath
+                    $match = 1
+                }
+            }
+            # If a username does not appear in the computers list
+            if ($match -eq 0)
+                {
+                $output = "No Match,"+$username+","+$fn+","+$ln+","+$division+","+$status+","+$title+","+$supervisor
+                $output | Out-File -Append $OutputFilePath
+                }
+    }
